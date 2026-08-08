@@ -125,8 +125,10 @@ class SailingRepository(private val context: Context) {
                 val isThunderstorm = weatherCode != null && weatherCode in THUNDERSTORM_CODES
 
                 val windDirStr = getWindDirection(windDirDegrees)
-                val (flag, vetoReason) = getSailingFlag(windSpeed, windGust, wave, wavePeriod, rainProb, isThunderstorm)
-
+                val (flag, vetoReason) = getSailingFlag(
+                    windSpeed, windGust, wave, wavePeriod, rainProb, isThunderstorm,
+                    SailingProfile.CROCIERA.thresholds  // Profilo default per compatibilità
+                )
                 resultList.add(ForecastItem(
                     displayDate, time, windSpeed, windGust, windDirStr, windDirDegrees,
                     wave, wavePeriod, rainProb, temperature, flag, vetoReason

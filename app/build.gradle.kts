@@ -14,7 +14,7 @@ if (localPropertiesFile.exists()) {
     localProperties.load(FileInputStream(localPropertiesFile))
 }
 
-val appVersionName = "0.9.5"
+val appVersionName = "1.0.0"
 
 android {
     namespace = "com.example.sailingapp"

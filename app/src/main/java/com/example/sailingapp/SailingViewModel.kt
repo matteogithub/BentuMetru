@@ -20,29 +20,37 @@ data class SailingUiState(
     val hasSearched: Boolean = false,
     val selectedLocation: LocationItem = LocationItem("Cagliari", "Sardegna", "Italia", 39.21, 9.11),
     val errorMessage: String? = null,
-    val favorites: List<LocationItem> = emptyList()
+    val favorites: List<LocationItem> = emptyList(),
+    val activeProfile: SailingProfile = SailingProfile.CROCIERA  // ← NUOVO
 )
 
-@OptIn(FlowPreview::class) // Necessario per usare l'operatore debounce
+@OptIn(FlowPreview::class)
 class SailingViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(SailingUiState())
     val uiState: StateFlow<SailingUiState> = _uiState.asStateFlow()
 
     private val repository = SailingRepository(application)
+    private val prefs = AppPreferences(application)  // ← NUOVO
 
     private val searchQueryFlow = MutableStateFlow("")
 
     init {
         _uiState.update { it.copy(favorites = repository.getFavorites()) }
+
+        // ← NUOVO: Carica il profilo salvato
+        viewModelScope.launch {
+            val savedProfile = prefs.getActiveProfile()
+            _uiState.update { it.copy(activeProfile = savedProfile) }
+        }
+
         viewModelScope.launch {
             searchQueryFlow
-                .debounce(500L) // Attende 500ms dall'ultima digitazione
-                .distinctUntilChanged() // Evita di rifare la ricerca se il testo è identico al precedente
+                .debounce(500L)
+                .distinctUntilChanged()
                 .collect { query ->
                     if (query.isNotBlank()) {
                         executeSearch(query)
                     } else {
-                        // Se il testo è vuoto, puliamo i risultati
                         _uiState.update { it.copy(searchResults = emptyList(), hasSearched = false) }
                     }
                 }
@@ -51,9 +59,7 @@ class SailingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun onSearchQueryChanged(query: String) {
-        // 1. Aggiorniamo immediatamente lo stato della UI affinché la tastiera non lagghi
         _uiState.update { it.copy(searchQuery = query) }
-        // 2. Passiamo il nuovo valore al Flow che gestisce il debounce
         searchQueryFlow.value = query
     }
 
@@ -82,7 +88,10 @@ class SailingViewModel(application: Application) : AndroidViewModel(application)
             val loc = _uiState.value.selectedLocation
             val result = repository.fetchMeteoData(loc.latitude, loc.longitude)
             if (result != null) {
-                _uiState.update { it.copy(forecastList = result, isLoading = false) }
+                // ← MODIFICATO: Ricalcola i flag col profilo attivo
+                val profile = _uiState.value.activeProfile
+                val recalculated = recalculateFlags(result, profile)
+                _uiState.update { it.copy(forecastList = recalculated, isLoading = false) }
             } else {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Errore di rete: impossibile recuperare i dati meteo.") }
             }
@@ -124,5 +133,34 @@ class SailingViewModel(application: Application) : AndroidViewModel(application)
         repository.saveFavorites(currentFavorites)
         _uiState.update { it.copy(favorites = currentFavorites) }
     }
-}
 
+    // ← NUOVO: Cambia profilo e ricalcola istantaneamente
+    fun changeProfile(newProfile: SailingProfile) {
+        viewModelScope.launch {
+            prefs.saveActiveProfile(newProfile)
+            _uiState.update { it.copy(activeProfile = newProfile) }
+
+            // Ricalcola i flag sui dati già scaricati (zero chiamate di rete!)
+            val recalculated = recalculateFlags(_uiState.value.forecastList, newProfile)
+            _uiState.update { it.copy(forecastList = recalculated) }
+        }
+    }
+
+    // ← NUOVO: Funzione helper per ricalcolare i flag
+    private fun recalculateFlags(forecasts: List<ForecastItem>, profile: SailingProfile): List<ForecastItem> {
+        return forecasts.map { item ->
+            val windDirDegrees = item.windDirDegrees
+            val isThunderstorm = false  // Non abbiamo il weatherCode in ForecastItem, quindi assumiamo false
+            val (newFlag, newVetoReason) = getSailingFlag(
+                item.windSpeed,
+                item.windGust,
+                item.wave,
+                item.wavePeriod,
+                item.rainProb,
+                isThunderstorm,
+                profile.thresholds
+            )
+            item.copy(flagColor = newFlag, vetoReason = newVetoReason)
+        }
+    }
+}

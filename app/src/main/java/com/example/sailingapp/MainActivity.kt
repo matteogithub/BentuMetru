@@ -97,6 +97,7 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) } // Stato per il menu a tendina
+    var showProfileDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { msg ->
@@ -111,6 +112,17 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
     }
 
     if (showInfoDialog) InfoDialog(onDismiss = { showInfoDialog = false })
+
+    if (showProfileDialog) {
+        ProfileSelectionDialog(
+            currentProfile = uiState.activeProfile,
+            onProfileSelected = { newProfile ->
+                viewModel.changeProfile(newProfile)
+                showProfileDialog = false
+            },
+            onDismiss = { showProfileDialog = false }
+        )
+    }
 
     if (showPrivacyDialog) {
         PrivacyDialog(
@@ -162,6 +174,11 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                             fontSize = 12.sp,
                             color = Color(0xFF003366).copy(alpha = 0.7f)
                         )
+                        Text(
+                            text = "Profilo: ${uiState.activeProfile.label}",
+                            fontSize = 11.sp,
+                            color = Color(0xFF003366).copy(alpha = 0.6f)
+                        )
                     }
 
                     Box {
@@ -175,6 +192,13 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text("Profilo") },
+                                onClick = {
+                                    showMenu = false
+                                    showProfileDialog = true
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Info") },
                                 onClick = {
@@ -494,8 +518,11 @@ fun LegendRow(color: Color, description: String) {
     }
 }
 
+
 @Composable
-fun LimitationsSection() {
+fun LimitationsSection(viewModel: SailingViewModel = viewModel()) {
+    val uiState by viewModel.uiState.collectAsState()
+
     Card(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer), elevation = CardDefaults.cardElevation(0.dp)) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -504,6 +531,8 @@ fun LimitationsSection() {
                 Text("Dati e Limiti del Modello", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
             }
             Spacer(modifier = Modifier.height(8.dp))
+            Text("Profilo attivo: ${uiState.activeProfile.label}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            Spacer(modifier = Modifier.height(4.dp))
             Text("Previsioni elaborate da Open-Meteo con combinazione automatica multi-modello. \nL'algoritmo calcola la qualità della navigabilità a vela, NON valuta la sicurezza globale. Non tiene conto di: imbarcazione, esperienza equipaggio e tipologia uscita.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
         }
     }
@@ -651,4 +680,75 @@ fun WeatherMapOverview(
             )
         }
     }
+}
+
+@Composable
+fun ProfileSelectionDialog(
+    currentProfile: SailingProfile,
+    onProfileSelected: (SailingProfile) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedProfile by remember { mutableStateOf(currentProfile) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Profilo", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    "Scegli il profilo che meglio si adatta alla tua esperienza e al tipo di uscita:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                SailingProfile.entries.forEach { profile ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedProfile = profile }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        RadioButton(
+                            selected = selectedProfile == profile,
+                            onClick = { selectedProfile = profile }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                profile.label,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                profile.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "⚠️ Modificando il profilo, le valutazioni saranno tarate sulla tua esperienza. La responsabilità della scelta e della navigazione resta al Comandante.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onProfileSelected(selectedProfile) }) {
+                Text("Conferma")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annulla")
+            }
+        }
+    )
 }

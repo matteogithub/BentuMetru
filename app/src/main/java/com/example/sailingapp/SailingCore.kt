@@ -14,7 +14,7 @@ data class ForecastItem(
     val rainProb: Int,
     val temperature: Double,
     val flagColor: FlagColor,
-    val vetoReason: String? = null  // ← NUOVO CAMPO
+    val vetoReason: String? = null
 )
 
 data class LocationItem(
@@ -25,20 +25,49 @@ data class LocationItem(
         if (region.isNotEmpty()) "$name ($region), $country" else "$name, $country"
 }
 
-// === SOGLIE DI VETO (RED automatico) ===
-const val WIND_MIN_SAILABLE = 3.5
-const val WIND_VETO = 20.0
-const val WIND_GUST_VETO = 22.0
-const val WAVE_MAX_SAFE = 2.0
-const val WAVE_STEEPNESS_MAX = 0.08
+// === NUOVO: Soglie parametrizzabili ===
+data class SailingThresholds(
+    val windMin: Double,        // Sotto: bonaccia
+    val windVeto: Double,       // Sopra: vento troppo forte
+    val gustVeto: Double,       // Sopra: raffica pericolosa
+    val waveMax: Double,        // Sopra: onda enorme
+    val steepMax: Double,      // Sopra: onda troppo ripida
+    val idealLow: Double,       // Inizio range ideale
+    val idealHigh: Double,      // Fine range ideale
+    val comfortMax: Double      // Limite per calcolo comfort (non veto)
+)
 
-// === SOGLIE PER CALCOLO COMFORT ===
-const val WIND_IDEAL_LOW = 6.0
-const val WIND_IDEAL_HIGH = 16.0
-const val WIND_MAX_SAFE_COMFORT = 25.0
-const val DEFAULT_COASTAL_PERIOD = 4.0
+// === NUOVO: Profili preimpostati ===
+enum class SailingProfile(
+    val label: String,
+    val description: String,
+    val thresholds: SailingThresholds
+) {
+    PRUDENTE(
+        "🟦 Prudente",
+        "Per famiglie, neofiti o uscite rilassanti. Soglie molto cautelative.",
+        SailingThresholds(4.0, 14.0, 16.0, 0.8, 0.06, 6.0, 12.0, 18.0)
+    ),
+    CROCIERA(
+        "🟩 Crociera",
+        "Per velisti medi e imbarcazioni da diporto. Equilibrio tra sicurezza e divertimento.",
+        SailingThresholds(3.5, 18.0, 20.0, 1.5, 0.08, 6.0, 16.0, 25.0)
+    ),
+    SPORTIVO(
+        "🟥 Sportivo",
+        "Per esperti e barche performanti. Soglie alte per vento forte e condizioni impegnative.",
+        SailingThresholds(3.0, 22.0, 28.0, 2.0, 0.12, 5.0, 20.0, 32.0)
+    );
+
+    companion object {
+        fun fromLabel(label: String): SailingProfile {
+            return entries.find { it.label == label } ?: CROCIERA
+        }
+    }
+}
 
 val THUNDERSTORM_CODES = setOf(95, 96, 99)
+const val DEFAULT_COASTAL_PERIOD = 4.0
 
 fun getWindDirection(degrees: Int): String {
     val directions = arrayOf("N", "NE", "E", "SE", "S", "SW", "W", "NW", "N")
@@ -46,64 +75,61 @@ fun getWindDirection(degrees: Int): String {
     return directions[index]
 }
 
-fun windComfort(windKnots: Double, windGusts: Double): Double {
+// === MODIFICATO: Ora usa soglie parametrizzate ===
+fun windComfort(windKnots: Double, windGusts: Double, t: SailingThresholds): Double {
     val effectiveWind = maxOf(windKnots, windGusts)
     return when {
-        effectiveWind < WIND_MIN_SAILABLE ->
-            (effectiveWind / WIND_MIN_SAILABLE) * 40.0
-        effectiveWind < WIND_IDEAL_LOW ->
-            40.0 + (effectiveWind - WIND_MIN_SAILABLE) / (WIND_IDEAL_LOW - WIND_MIN_SAILABLE) * 60.0
-        effectiveWind <= WIND_IDEAL_HIGH -> 100.0
-        effectiveWind <= WIND_MAX_SAFE_COMFORT ->
-            100.0 - (effectiveWind - WIND_IDEAL_HIGH) / (WIND_MAX_SAFE_COMFORT - WIND_IDEAL_HIGH) * 100.0
+        effectiveWind < t.windMin -> (effectiveWind / t.windMin) * 40.0
+        effectiveWind < t.idealLow -> 40.0 + (effectiveWind - t.windMin) / (t.idealLow - t.windMin) * 60.0
+        effectiveWind <= t.idealHigh -> 100.0
+        effectiveWind <= t.comfortMax -> 100.0 - (effectiveWind - t.idealHigh) / (t.comfortMax - t.idealHigh) * 100.0
         else -> 0.0
     }
 }
 
-fun waveComfort(heightM: Double, periodS: Double?): Double {
+// === MODIFICATO: Ora usa soglie parametrizzate ===
+fun waveComfort(heightM: Double, periodS: Double?, t: SailingThresholds): Double {
     val effectivePeriod = periodS?.takeIf { it > 0 } ?: DEFAULT_COASTAL_PERIOD
     val steepness = heightM / (effectivePeriod * effectivePeriod)
     return when {
         steepness <= 0.02 -> 100.0
         steepness <= 0.06 -> 100.0 - (steepness - 0.02) / 0.04 * 60.0
-        steepness <= 0.10 -> 40.0 - (steepness - 0.06) / 0.04 * 40.0
+        steepness <= t.steepMax -> 40.0 - (steepness - 0.06) / (t.steepMax - 0.06) * 40.0
         else -> 0.0
     }
 }
 
-/**
- * Calcola il flag e il motivo del veto (se presente).
- * @return Pair(FlagColor, vetoReason) dove vetoReason è null se non c'è veto.
- */
+// === MODIFICATO: Ora accetta soglie come parametro ===
 fun getSailingFlag(
     windKnots: Double,
     windGusts: Double,
     waveHeightM: Double,
     wavePeriodS: Double?,
     rainProb: Int,
-    isThunderstorm: Boolean
+    isThunderstorm: Boolean,
+    t: SailingThresholds = SailingProfile.CROCIERA.thresholds  // Default: Crociera
 ): Pair<FlagColor, String?> {
     // 1. Controllo veti prioritari
-    if (windKnots < WIND_MIN_SAILABLE)
-        return FlagColor.RED to "Bonaccia (< ${WIND_MIN_SAILABLE} nodi)"
-    if (windKnots > WIND_VETO)
-        return FlagColor.RED to "Vento forte (> ${WIND_VETO.toInt()} nodi)"
-    if (windGusts > WIND_GUST_VETO)
-        return FlagColor.RED to "Raffica pericolosa (> ${WIND_GUST_VETO.toInt()} nodi)"
-    if (waveHeightM > WAVE_MAX_SAFE)
-        return FlagColor.RED to "Onda enorme (> ${WAVE_MAX_SAFE} m)"
+    if (windKnots < t.windMin)
+        return FlagColor.RED to "Bonaccia (< ${t.windMin} nodi)"
+    if (windKnots > t.windVeto)
+        return FlagColor.RED to "Vento forte (> ${t.windVeto.toInt()} nodi)"
+    if (windGusts > t.gustVeto)
+        return FlagColor.RED to "Raffica pericolosa (> ${t.gustVeto.toInt()} nodi)"
+    if (waveHeightM > t.waveMax)
+        return FlagColor.RED to "Onda enorme (> ${t.waveMax} m)"
 
     val effectivePeriod = wavePeriodS?.takeIf { it > 0 } ?: DEFAULT_COASTAL_PERIOD
     val steepness = waveHeightM / (effectivePeriod * effectivePeriod)
-    if (steepness > WAVE_STEEPNESS_MAX)
+    if (steepness > t.steepMax)
         return FlagColor.RED to "Onda troppo ripida"
 
     if (isThunderstorm)
         return FlagColor.RED to "Temporale"
 
-    // 2. Calcolo comfort (nessun veto)
-    val cWind = windComfort(windKnots, windGusts)
-    val cWave = waveComfort(waveHeightM, wavePeriodS)
+    // 2. Calcolo comfort
+    val cWind = windComfort(windKnots, windGusts, t)
+    val cWave = waveComfort(waveHeightM, wavePeriodS, t)
     val baseScore = (cWind / 100.0) * (cWave / 100.0) * 100.0
     val finalScore = baseScore * (1.0 - 0.3 * (rainProb / 100.0))
 
@@ -114,5 +140,5 @@ fun getSailingFlag(
         else -> FlagColor.RED
     }
 
-    return flag to null  // Nessun veto
+    return flag to null
 }
