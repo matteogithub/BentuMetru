@@ -57,11 +57,17 @@ import androidx.compose.ui.draw.scale
 import com.google.android.gms.maps.GoogleMapOptions
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.AssistChip
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 
 // --- PRIVACY: DataStore ---
 private val Context.dataStore by preferencesDataStore(name = "settings")
 private val PRIVACY_ACCEPTED_KEY = booleanPreferencesKey("privacy_accepted")
-private const val PRIVACY_POLICY_URL = "https://open-meteo.com/en/privacy"
+private const val PRIVACY_POLICY_URL = "https://github.com/matteogithub/BentuMetru/blob/main/PRIVACY_POLICY.md"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -521,17 +527,60 @@ fun PrivacyDialog(onAccept: () -> Unit, onOpenPolicy: () -> Unit) {
 
 @Composable
 fun InfoDialog(onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, icon = { Icon(Icons.Default.Info, contentDescription = null) }, title = { Text("BentuMetru", fontWeight = FontWeight.Bold) },
+    // 1. Dichiara il gestore per aprire i link nel browser
+    val uriHandler = LocalUriHandler.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Info, contentDescription = null) },
+        title = { Text("BentuMetru", fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 Text("Ideazione e Modello", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 4.dp))
                 Text("Architettura logica, design e formule matematiche per l'idoneità alla vela ideati e sviluppati da Matteo Fraschini.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 12.dp))
+
                 Text("Sviluppo Tecnico", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 4.dp))
                 Text("Implementazione Jetpack Compose in Kotlin realizzata con il supporto dell'IA (Gemini), sotto revisione e validazione dell'autore.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 12.dp))
+
                 Text("Privacy e Posizione", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 4.dp))
-                Text("L'app usa il GPS solo per il meteo locale. I dati non sono salvati e sono processati anonimamente da Open-Meteo.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 12.dp))
+
+                // 2. Costruisci la stringa con il link nascosto
+                val privacyText = buildAnnotatedString {
+                    append("L'app usa il GPS solo per il meteo locale. I dati non sono salvati e sono processati anonimamente da Open-Meteo. ")
+
+                    // Inizia la porzione cliccabile
+                    pushStringAnnotation(
+                        tag = "URL",
+                        annotation = "https://github.com/matteogithub/BentuMetru/blob/main/PRIVACY_POLICY.md"
+                    )
+                    withStyle(
+                        style = SpanStyle(
+                            color = MaterialTheme.colorScheme.primary, // Colore del tema per i link
+                            textDecoration = TextDecoration.Underline,
+                            fontWeight = FontWeight.Bold
+                        )
+                    ) {
+                        append("Privacy Policy per BentuMetru")
+                    }
+                    pop() // Fine della porzione cliccabile
+                }
+
+                // 3. Usa ClickableText al posto di Text
+                ClickableText(
+                    text = privacyText,
+                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface), // Mantiene il colore del testo standard per la parte non cliccabile
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    onClick = { offset ->
+                        // Controlla se il clic è avvenuto esattamente sopra l'annotazione "URL"
+                        privacyText.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                            .firstOrNull()?.let { stringAnnotation ->
+                                uriHandler.openUri(stringAnnotation.item)
+                            }
+                    }
+                )
+
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                Text("Dati forniti in tempo reale tramite API Open-Meteo. Previsioni elaborate da Open-Meteo con combinazione automatica multi-modello.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text("Dati forniti in tempo reale tramite API Open-Meteo.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } }
