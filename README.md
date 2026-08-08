@@ -17,11 +17,11 @@ Questa applicazione è fornita "così com'è" e il suo utilizzo è a totale risc
 * **Provider Dati:** Le informazioni orarie meteo-marine sono fornite in tempo reale tramite [Open-Meteo API](https://open-meteo.com/).
 * **Privacy First:** I dati GPS (se autorizzati) vengono elaborati solo localmente dal dispositivo. Nessun dato personale o di posizione viene tracciato, memorizzato o condiviso. Consulta la nostra [Privacy Policy](PRIVACY_POLICY.md) per tutti i dettagli.
 
-## Download e Installazione
-L'applicazione è scaricabile direttamente da questo repository:
-1. Visita la sezione [Releases](../../releases).
-2. Scarica l'ultimo file `.apk` disponibile (es. `BentuMetru.apk`).
-3. Apri il file sul tuo smartphone Android e autorizza l'installazione.
+## Installa l'App
+L'applicazione è scaricabile e installabile direttamente da questo repository:
+1. Vai alla pagina ufficiale delle **[Releases](https://github.com/matteogithub/BentuMetru/releases)**.
+2. Scarica l'ultimo file `.apk` disponibile (es. `BentuMetru.apk`) cliccandoci sopra.
+3. Apri il file appena scaricato sul tuo smartphone Android e autorizza l'installazione quando richiesto.
 
 ## Autore e Sviluppo
 Architettura logica, design e formule matematiche ideati da Matteo Fraschini. L'implementazione del codice (Kotlin/Jetpack Compose) è stata realizzata con il supporto di strumenti di Intelligenza Artificiale (Gemini), costantemente revisionati, testati e validati dall'autore.
