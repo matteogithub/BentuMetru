@@ -37,3 +37,6 @@ val ColorScheme.flagGreen: Color get() = FlagGreen
 val ColorScheme.flagYellow: Color get() = FlagYellow
 val ColorScheme.flagOrange: Color get() = FlagOrange
 val ColorScheme.flagRed: Color get() = FlagRed
+
+val ColorScheme.brandBlue: Color
+    @Composable get() = if (isSystemInDarkTheme()) Color(0xFF8AB4F8) else Color(0xFF003366)

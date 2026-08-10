@@ -98,6 +98,7 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
     var showInfoDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) } // Stato per il menu a tendina
     var showProfileDialog by remember { mutableStateOf(false) }
+    var showLimitationsDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { msg ->
@@ -121,6 +122,13 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                 showProfileDialog = false
             },
             onDismiss = { showProfileDialog = false }
+        )
+    }
+
+    if (showLimitationsDialog) {
+        LimitationsDialog(
+            activeProfile = uiState.activeProfile,
+            onDismiss = { showLimitationsDialog = false }
         )
     }
 
@@ -165,19 +173,14 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                     Column(horizontalAlignment = Alignment.Start) {
                         Text(
                             text = "BentuMetru",
-                            fontSize = 24.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF003366)
+                            color = MaterialTheme.colorScheme.brandBlue
                         )
                         Text(
                             text = "Misura il vento, colora il mare",
                             fontSize = 12.sp,
-                            color = Color(0xFF003366).copy(alpha = 0.7f)
-                        )
-                        Text(
-                            text = "Profilo: ${uiState.activeProfile.label}",
-                            fontSize = 11.sp,
-                            color = Color(0xFF003366).copy(alpha = 0.6f)
+                            color = MaterialTheme.colorScheme.brandBlue.copy(alpha = 0.7f)
                         )
                     }
 
@@ -193,10 +196,25 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                             onDismissRequest = { showMenu = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Profilo") },
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Profilo: ")
+                                        Text(
+                                            uiState.activeProfile.label,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                },
                                 onClick = {
                                     showMenu = false
                                     showProfileDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Dati e limiti del modello") },
+                                onClick = {
+                                    showMenu = false
+                                    showLimitationsDialog = true
                                 }
                             )
                             DropdownMenuItem(
@@ -204,6 +222,21 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                                 onClick = {
                                     showMenu = false
                                     showInfoDialog = true
+                                }
+                            )
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                            DropdownMenuItem(
+                                text = { Text("Privacy Policy per BentuMetru") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.PrivacyTip,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL)))
                                 }
                             )
                         }
@@ -217,14 +250,27 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                         onValueChange = { viewModel.onSearchQueryChanged(it) },
                         placeholder = { Text("Cerca località...") },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                if (hasFine || hasCoarse) viewModel.fetchGpsLocation()
+                                else permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.MyLocation,
+                                    contentDescription = "Usa la mia posizione GPS",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        },
                         shape = RoundedCornerShape(24.dp),
                         colors = TextFieldDefaults.colors(
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
                             disabledIndicatorColor = Color.Transparent
                         ),
-                        modifier = Modifier
-                            .fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     // Tendina dei risultati scrollabile
@@ -330,17 +376,6 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
             // ZONA DATI CON PULL TO REFRESH
             PullToRefreshBox(isRefreshing = uiState.isLoading, onRefresh = { viewModel.refreshData() }, modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    OutlinedButton(
-                        onClick = {
-                            val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                            val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                            if (hasFine || hasCoarse) viewModel.fetchGpsLocation()
-                            else permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("📍 Usa la mia posizione GPS") }
-
-                    Spacer(modifier = Modifier.height(16.dp))
 
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -366,8 +401,10 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                                 Spacer(modifier = Modifier.height(16.dp))
 
                                 // Sezioni Informative
-                                LegendSection()
-                                LimitationsSection()
+                                LegendSection(
+                                    activeProfile = uiState.activeProfile,
+                                    onProfileClick = { showProfileDialog = true }
+                                )
                                 DisclaimerSection()
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
@@ -495,16 +532,46 @@ fun WeatherIconRow(icon: androidx.compose.ui.graphics.vector.ImageVector, value:
 }
 
 @Composable
-fun LegendSection() {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(2.dp)) {
+fun LegendSection(
+    activeProfile: SailingProfile,
+    onProfileClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text("Legenda di navigabilità a vela:", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
-            LegendRow(getFlagColor(FlagColor.GREEN), "Ottimale")
-            LegendRow(getFlagColor(FlagColor.YELLOW), "Discreta")
-            LegendRow(getFlagColor(FlagColor.ORANGE), "Mediocre")
-            LegendRow(getFlagColor(FlagColor.RED), "Sconsigliata")
-            //Text("Vento: primo valore = media, secondo = raffica (nodi).", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-            //Text("T = periodo dell'onda in secondi. Alto = swell dolce; Basso = mare corto.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+            Text(
+                "Propulsione a vela:",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            // Legenda a 2 colonne
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    LegendRow(getFlagColor(FlagColor.GREEN), "Ottima")
+                    LegendRow(getFlagColor(FlagColor.YELLOW), "Discreta")
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    LegendRow(getFlagColor(FlagColor.ORANGE), "Mediocre")
+                    LegendRow(getFlagColor(FlagColor.RED), "Pessima")
+                }
+            }
+
+            // ← Chip SOTTO la legenda
+            Spacer(modifier = Modifier.height(10.dp))
+            AssistChip(
+                onClick = onProfileClick,
+                label = {
+                    Text(
+                        "Profilo attivo: ${activeProfile.label}",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            )
         }
     }
 }
@@ -520,22 +587,36 @@ fun LegendRow(color: Color, description: String) {
 
 
 @Composable
-fun LimitationsSection(viewModel: SailingViewModel = viewModel()) {
-    val uiState by viewModel.uiState.collectAsState()
-
-    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer), elevation = CardDefaults.cardElevation(0.dp)) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Info, contentDescription = "Info", tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Dati e Limiti del Modello", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+fun LimitationsDialog(activeProfile: SailingProfile, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Info, contentDescription = null) },
+        title = { Text("Dati e Limiti del Modello", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    "Profilo attivo: ${activeProfile.label}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text(
+                    "Previsioni elaborate da Open-Meteo con combinazione automatica multi-modello.\n" +
+                            "L'algoritmo calcola la qualità della navigabilità a vela, NON valuta la sicurezza globale. " +
+                            "Non tiene conto di: imbarcazione, esperienza equipaggio e tipologia uscita.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Profilo attivo: ${uiState.activeProfile.label}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Previsioni elaborate da Open-Meteo con combinazione automatica multi-modello. \nL'algoritmo calcola la qualità della navigabilità a vela, NON valuta la sicurezza globale. Non tiene conto di: imbarcazione, esperienza equipaggio e tipologia uscita.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Chiudi") }
         }
-    }
+    )
 }
 
 @Composable
