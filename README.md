@@ -4,7 +4,7 @@
 
 ## ⚠️ Disclaimer e Sicurezza (LEGGERE ATTENTAMENTE)
 Questa applicazione è fornita "così com'è" e il suo utilizzo è a totale rischio dell'utente. Si precisa che:
-* **Nessuna funzione di salvaguardia:** L'app **NON** fornisce in alcun modo informazioni relative alla sicurezza in mare o alla navigazione sicura. È unicamente uno strumento matematico per riassumere le condizioni utili all'uscita a vela.
+* **Nessuna funzione di salvaguardia:** L'app **NON** fornisce in alcun modo informazioni relative alla sicurezza in mare o alla navigazione sicura.
 * **Obbligo di fonti ufficiali:** Prima di intraprendere qualsiasi uscita in mare, rimane **fondamentale e imprescindibile** leggere, confrontare e valutare con attenzione i bollettini meteorologici ufficiali diramati dalle autorità marittime competenti.
 * **Responsabilità esclusiva:** La decisione finale di prendere il mare, così come la responsabilità per l'incolumità dell'imbarcazione e dell'equipaggio, ricade **sempre e comunque sul Comandante**.
 * **Limiti dell'algoritmo:** L'attuale indice di valutazione non tiene in considerazione parametri marittimi essenziali quali:
