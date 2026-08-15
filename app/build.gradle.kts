@@ -14,7 +14,7 @@ if (localPropertiesFile.exists()) {
     localProperties.load(FileInputStream(localPropertiesFile))
 }
 
-val appVersionName = "1.1.1"
+val appVersionName = "1.1.2"
 
 android {
     namespace = "com.example.sailingapp"
@@ -26,7 +26,7 @@ android {
         applicationId = "com.example.bentumetru"
         minSdk = 26
         targetSdk = 37
-        versionCode = 7
+        versionCode = 8
 
         versionName = appVersionName
 
