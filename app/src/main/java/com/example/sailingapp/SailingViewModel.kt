@@ -115,23 +115,23 @@ class SailingViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(errorMessage = null) }
     }
 
-    fun toggleFavorite() {
-        val currentState = _uiState.value
-        val currentLocation = currentState.selectedLocation
-        val currentFavorites = currentState.favorites.toMutableList()
+    // ← NUOVO: salva la località corrente con nome personalizzato
+    fun saveCurrentLocationAsFavorite(customName: String) {
+        val current = _uiState.value.selectedLocation
+        val newFavorite = current.copy(name = customName.trim())
+        val updated = _uiState.value.favorites + newFavorite
+        repository.saveFavorites(updated)
+        _uiState.update { it.copy(favorites = updated) }
+    }
 
-        val existingIndex = currentFavorites.indexOfFirst {
-            it.latitude == currentLocation.latitude && it.longitude == currentLocation.longitude
+    // ← NUOVO: rimuove la località corrente dai preferiti
+    fun removeCurrentLocationFromFavorites() {
+        val current = _uiState.value.selectedLocation
+        val updated = _uiState.value.favorites.filterNot {
+            it.latitude == current.latitude && it.longitude == current.longitude
         }
-
-        if (existingIndex != -1) {
-            currentFavorites.removeAt(existingIndex)
-        } else {
-            currentFavorites.add(currentLocation)
-        }
-
-        repository.saveFavorites(currentFavorites)
-        _uiState.update { it.copy(favorites = currentFavorites) }
+        repository.saveFavorites(updated)
+        _uiState.update { it.copy(favorites = updated) }
     }
 
     // ← NUOVO: Cambia profilo e ricalcola istantaneamente

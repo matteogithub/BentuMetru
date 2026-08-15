@@ -64,7 +64,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 
-// --- PRIVACY: DataStore ---
+// --- PRIVACY DataStore ---
 private val Context.dataStore by preferencesDataStore(name = "settings")
 private val PRIVACY_ACCEPTED_KEY = booleanPreferencesKey("privacy_accepted")
 private const val PRIVACY_POLICY_URL = "https://github.com/matteogithub/BentuMetru/blob/main/PRIVACY_POLICY.md"
@@ -99,6 +99,7 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
     var showMenu by remember { mutableStateOf(false) } // Stato per il menu a tendina
     var showProfileDialog by remember { mutableStateOf(false) }
     var showLimitationsDialog by remember { mutableStateOf(false) }
+    var showFavoriteNameDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { msg ->
@@ -132,6 +133,18 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
         )
     }
 
+
+    if (showFavoriteNameDialog) {
+        SaveFavoriteDialog(
+            initialName = uiState.selectedLocation.name,
+            onConfirm = { customName ->
+                viewModel.saveCurrentLocationAsFavorite(customName)
+                showFavoriteNameDialog = false
+            },
+            onDismiss = { showFavoriteNameDialog = false }
+        )
+    }
+
     if (showPrivacyDialog) {
         PrivacyDialog(
             onAccept = {
@@ -154,7 +167,7 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) { // Rimosso il padding globale qui per far arrivare l'header ai bordi
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
 
             // --- HEADER STILE WHATSAPP ---
             Column(
@@ -360,7 +373,10 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                         }
                     }
 
-                    IconButton(onClick = { viewModel.toggleFavorite() }) {
+                    IconButton(onClick = {
+                        if (isFavorite) viewModel.removeCurrentLocationFromFavorites()
+                        else showFavoriteNameDialog = true
+                    }) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                             contentDescription = "Preferito",
@@ -495,7 +511,7 @@ fun ForecastCard(item: ForecastItem) {
                 }
             }
 
-            // ← NUOVO: Mostra il motivo del veto se presente
+
             if (item.flagColor == FlagColor.RED && item.vetoReason != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(
@@ -830,6 +846,46 @@ fun ProfileSelectionDialog(
             TextButton(onClick = onDismiss) {
                 Text("Annulla")
             }
+        }
+    )
+}
+@Composable
+fun SaveFavoriteDialog(
+    initialName: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Star, contentDescription = null) },
+        title = { Text("Salva nei preferiti", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text(
+                    "Scegli il nome con cui salvare questo punto:",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nome") },
+                    placeholder = { Text("Es. Il mio ormeggio, Boa sud...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank(),
+                onClick = { onConfirm(name) }
+            ) { Text("Salva") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annulla") }
         }
     )
 }

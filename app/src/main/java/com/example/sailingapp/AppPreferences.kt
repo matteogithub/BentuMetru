@@ -6,7 +6,6 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 
-// DataStore separato per evitare conflitti con "settings" della privacy
 private val Context.profileStore by preferencesDataStore(name = "profile_prefs")
 
 class AppPreferences(private val context: Context) {
