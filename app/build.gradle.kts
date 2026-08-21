@@ -14,12 +14,12 @@ if (localPropertiesFile.exists()) {
     localProperties.load(FileInputStream(localPropertiesFile))
 }
 
-val appVersionName = "1.1.2"
+val appVersionName = "1.2.0"
 
 android {
     namespace = "com.example.sailingapp"
     compileSdk {
-        version = release(37)
+        version = release(38)
     }
 
     defaultConfig {
