@@ -19,7 +19,7 @@ val appVersionName = "1.2.0"
 android {
     namespace = "com.example.sailingapp"
     compileSdk {
-        version = release(38)
+        version = release(37)
     }
 
     defaultConfig {
