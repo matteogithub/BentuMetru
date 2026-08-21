@@ -14,7 +14,8 @@ data class ForecastItem(
     val rainProb: Int,
     val temperature: Double,
     val flagColor: FlagColor,
-    val vetoReason: String? = null
+    val vetoReason: String? = null,
+    val isThunderstorm: Boolean = false
 )
 
 data class LocationItem(
@@ -25,19 +26,23 @@ data class LocationItem(
         if (region.isNotEmpty()) "$name ($region), $country" else "$name, $country"
 }
 
-// === NUOVO: Soglie parametrizzabili ===
+private const val LOCATION_MATCH_EPSILON = 0.0001
+
+fun LocationItem.isSameSpot(other: LocationItem): Boolean =
+    Math.abs(latitude - other.latitude) < LOCATION_MATCH_EPSILON &&
+        Math.abs(longitude - other.longitude) < LOCATION_MATCH_EPSILON
+
 data class SailingThresholds(
-    val windMin: Double,        // Sotto: bonaccia
-    val windVeto: Double,       // Sopra: vento troppo forte
-    val gustVeto: Double,       // Sopra: raffica pericolosa
-    val waveMax: Double,        // Sopra: onda enorme
-    val steepMax: Double,      // Sopra: onda troppo ripida
-    val idealLow: Double,       // Inizio range ideale
-    val idealHigh: Double,      // Fine range ideale
-    val comfortMax: Double      // Limite per calcolo comfort (non veto)
+    val windMin: Double,
+    val windVeto: Double,
+    val gustVeto: Double,
+    val waveMax: Double,
+    val steepMax: Double,
+    val idealLow: Double,
+    val idealHigh: Double,
+    val comfortMax: Double
 )
 
-// === NUOVO: Profili preimpostati ===
 enum class SailingProfile(
     val label: String,
     val description: String,
@@ -46,17 +51,17 @@ enum class SailingProfile(
     PRUDENTE(
         "🟦 Prudente",
         "Per famiglie, neofiti o uscite rilassanti. Soglie molto cautelative.",
-        SailingThresholds(4.0, 14.0, 16.0, 0.8, 0.06, 6.0, 12.0, 18.0)
+        SailingThresholds(4.0, 14.0, 16.0, 0.8, 0.06, 6.0, 12.0, 16.0)
     ),
     CROCIERA(
         "🟩 Crociera",
         "Per velisti medi e imbarcazioni da diporto. Equilibrio tra sicurezza e divertimento.",
-        SailingThresholds(3.5, 18.0, 20.0, 1.5, 0.08, 6.0, 16.0, 25.0)
+        SailingThresholds(3.5, 18.0, 20.0, 1.5, 0.08, 6.0, 16.0, 20.0)
     ),
     SPORTIVO(
         "🟥 Sportivo",
         "Per esperti e barche performanti. Soglie alte per vento forte e condizioni impegnative.",
-        SailingThresholds(3.0, 22.0, 28.0, 2.0, 0.12, 5.0, 20.0, 32.0)
+        SailingThresholds(3.0, 22.0, 28.0, 2.0, 0.12, 5.0, 20.0, 28.0)
     );
 
     companion object {
@@ -75,7 +80,6 @@ fun getWindDirection(degrees: Int): String {
     return directions[index]
 }
 
-// === MODIFICATO: Ora usa soglie parametrizzate ===
 fun windComfort(windKnots: Double, windGusts: Double, t: SailingThresholds): Double {
     val effectiveWind = maxOf(windKnots, windGusts)
     return when {
@@ -87,7 +91,6 @@ fun windComfort(windKnots: Double, windGusts: Double, t: SailingThresholds): Dou
     }
 }
 
-// === MODIFICATO: Ora usa soglie parametrizzate ===
 fun waveComfort(heightM: Double, periodS: Double?, t: SailingThresholds): Double {
     val effectivePeriod = periodS?.takeIf { it > 0 } ?: DEFAULT_COASTAL_PERIOD
     val steepness = heightM / (effectivePeriod * effectivePeriod)
@@ -99,7 +102,6 @@ fun waveComfort(heightM: Double, periodS: Double?, t: SailingThresholds): Double
     }
 }
 
-// === MODIFICATO: Ora accetta soglie come parametro ===
 fun getSailingFlag(
     windKnots: Double,
     windGusts: Double,
@@ -107,9 +109,8 @@ fun getSailingFlag(
     wavePeriodS: Double?,
     rainProb: Int,
     isThunderstorm: Boolean,
-    t: SailingThresholds = SailingProfile.CROCIERA.thresholds  // Default: Crociera
+    t: SailingThresholds = SailingProfile.CROCIERA.thresholds
 ): Pair<FlagColor, String?> {
-    // 1. Controllo veti prioritari
     if (windKnots < t.windMin)
         return FlagColor.RED to "Bonaccia (< ${t.windMin} nodi)"
     if (windKnots > t.windVeto)
@@ -127,7 +128,6 @@ fun getSailingFlag(
     if (isThunderstorm)
         return FlagColor.RED to "Temporale"
 
-    // 2. Calcolo comfort
     val cWind = windComfort(windKnots, windGusts, t)
     val cWave = waveComfort(waveHeightM, wavePeriodS, t)
     val baseScore = (cWind / 100.0) * (cWave / 100.0) * 100.0

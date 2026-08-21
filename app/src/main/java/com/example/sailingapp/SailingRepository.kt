@@ -4,7 +4,10 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -62,14 +65,25 @@ class SailingRepository(private val context: Context) {
         }
         prefs.edit().putString(FAVORITES_KEY, jsonArray.toString()).apply()
     }
+    private fun readUrlWithTimeout(urlStr: String): String {
+        val connection = URL(urlStr).openConnection() as java.net.HttpURLConnection
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 15_000
+        return try {
+            connection.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     suspend fun fetchMeteoData(lat: Double, lon: Double): List<ForecastItem>? = withContext(Dispatchers.IO) {
         val resultList = mutableListOf<ForecastItem>()
         try {
             val windUrl = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&hourly=temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation_probability,weathercode&wind_speed_unit=kn&timezone=auto"
             val waveUrl = "https://marine-api.open-meteo.com/v1/marine?latitude=$lat&longitude=$lon&hourly=wave_height,wave_period&timezone=auto"
 
-            val windResponse = URL(windUrl).readText()
-            val waveResponse = URL(waveUrl).readText()
+            val windResponse = readUrlWithTimeout(windUrl)
+            val waveResponse = readUrlWithTimeout(waveUrl)
 
             val windJsonRoot = JSONObject(windResponse)
             val waveJsonRoot = JSONObject(waveResponse)
@@ -114,24 +128,26 @@ class SailingRepository(private val context: Context) {
                 val displayDate = "$dayName $dayNumber $monthName"
                 val time = fullTimeString.substring(11, 16)
 
-                val temperature = tempArray.getDouble(i)
-                val windSpeed = windSpeedArray.getDouble(i)
-                val windGust = windGustsArray.getDouble(i)
-                val wave = waveArray.getDouble(i)
+                val temperature = tempArray.getDoubleOrNull(i)
+                val windSpeed = windSpeedArray.getDoubleOrNull(i)
+                val windGust = windGustsArray.getDoubleOrNull(i)
+                val wave = waveArray.getDoubleOrNull(i)
+                if (temperature == null || windSpeed == null || windGust == null || wave == null) continue
+
                 val wavePeriod = wavePeriodArray.getDoubleOrNull(i)
-                val windDirDegrees = windDirArray.getInt(i)
-                val rainProb = rainArray.getInt(i)
+                val windDirDegrees = windDirArray.getIntOrNull(i) ?: 0
+                val rainProb = rainArray.getIntOrNull(i) ?: 0
                 val weatherCode = weathercodeArray.getIntOrNull(i)
                 val isThunderstorm = weatherCode != null && weatherCode in THUNDERSTORM_CODES
 
                 val windDirStr = getWindDirection(windDirDegrees)
                 val (flag, vetoReason) = getSailingFlag(
                     windSpeed, windGust, wave, wavePeriod, rainProb, isThunderstorm,
-                    SailingProfile.CROCIERA.thresholds  // Profilo default per compatibilità
+                    SailingProfile.CROCIERA.thresholds
                 )
                 resultList.add(ForecastItem(
                     displayDate, time, windSpeed, windGust, windDirStr, windDirDegrees,
-                    wave, wavePeriod, rainProb, temperature, flag, vetoReason
+                    wave, wavePeriod, rainProb, temperature, flag, vetoReason, isThunderstorm
                 ))
             }
         } catch (e: Exception) {
@@ -146,7 +162,7 @@ class SailingRepository(private val context: Context) {
         try {
             val safeQuery = java.net.URLEncoder.encode(query, "UTF-8")
             val url = "https://geocoding-api.open-meteo.com/v1/search?name=$safeQuery&count=5&language=it&format=json"
-            val response = URL(url).readText()
+            val response = readUrlWithTimeout(url)
             val jsonObject = JSONObject(response)
 
             if (jsonObject.has("results")) {
@@ -173,10 +189,9 @@ class SailingRepository(private val context: Context) {
 
         if (!hasFine && !hasCoarse) return null
 
-        val location = suspendCancellableCoroutine<android.location.Location?> { continuation ->
-            fusedLocationClient.lastLocation.addOnSuccessListener { loc -> continuation.resume(loc) }
-                .addOnFailureListener { continuation.resume(null) }
-        } ?: return null
+        val location = getFreshLocation(fusedLocationClient)
+            ?: getLastKnownLocation(fusedLocationClient)
+            ?: return null
 
         return withContext(Dispatchers.IO) {
             var name = "Posizione Attuale"
@@ -200,6 +215,23 @@ class SailingRepository(private val context: Context) {
                 region = "Coordinate"
             }
             LocationItem(name, region, country, location.latitude, location.longitude)
+        }
+    }
+
+    private suspend fun getFreshLocation(client: FusedLocationProviderClient): android.location.Location? {
+        val cancellationTokenSource = CancellationTokenSource()
+        return suspendCancellableCoroutine<android.location.Location?> { continuation ->
+            continuation.invokeOnCancellation { cancellationTokenSource.cancel() }
+            client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellationTokenSource.token)
+                .addOnSuccessListener { loc -> continuation.resume(loc) }
+                .addOnFailureListener { continuation.resume(null) }
+        }
+    }
+
+    private suspend fun getLastKnownLocation(client: FusedLocationProviderClient): android.location.Location? {
+        return suspendCancellableCoroutine<android.location.Location?> { continuation ->
+            client.lastLocation.addOnSuccessListener { loc -> continuation.resume(loc) }
+                .addOnFailureListener { continuation.resume(null) }
         }
     }
 }

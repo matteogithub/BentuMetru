@@ -64,7 +64,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 
-// --- PRIVACY DataStore ---
 private val Context.dataStore by preferencesDataStore(name = "settings")
 private val PRIVACY_ACCEPTED_KEY = booleanPreferencesKey("privacy_accepted")
 private const val PRIVACY_POLICY_URL = "https://github.com/matteogithub/BentuMetru/blob/main/PRIVACY_POLICY.md"
@@ -96,7 +95,7 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
 
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) } // Stato per il menu a tendina
+    var showMenu by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
     var showLimitationsDialog by remember { mutableStateOf(false) }
     var showFavoriteNameDialog by remember { mutableStateOf(false) }
@@ -169,13 +168,11 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
 
-            // --- HEADER STILE WHATSAPP ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.background)
             ) {
-                // 1. RIGA IN ALTO: Titolo e Tre Puntini
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -256,8 +253,7 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                     }
                 }
 
-                // 2. BARRA DI RICERCA: Stile "Pillola"
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { // Aggiunto padding qui
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                     TextField(
                         value = uiState.searchQuery,
                         onValueChange = { viewModel.onSearchQueryChanged(it) },
@@ -286,7 +282,6 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Tendina dei risultati scrollabile
                     if (uiState.hasSearched) {
                         Card(
                             modifier = Modifier
@@ -319,7 +314,6 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // --- BARRA DEI PREFERITI ---
                 if (uiState.favorites.isNotEmpty()) {
                     LazyRow(
                         modifier = Modifier
@@ -348,9 +342,8 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // 3. RIGA LOCALITÀ: Mostra dove siamo ora
                 val currentLoc = uiState.selectedLocation
-                val isFavorite = uiState.favorites.any { it.latitude == currentLoc.latitude && it.longitude == currentLoc.longitude }
+                val isFavorite = uiState.favorites.any { it.isSameSpot(currentLoc) }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -389,7 +382,6 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ZONA DATI CON PULL TO REFRESH
             PullToRefreshBox(isRefreshing = uiState.isLoading, onRefresh = { viewModel.refreshData() }, modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(modifier = Modifier.fillMaxSize()) {
 
@@ -402,10 +394,8 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         if (uiState.forecastList.isNotEmpty()) {
                             item {
-                                // Recupera i dati attuali (il primo slot orario disponibile)
                                 val currentForecast = uiState.forecastList.first()
 
-                                // Mostra la Mappa di Overview
                                 WeatherMapOverview(
                                     latitude = uiState.selectedLocation.latitude,
                                     longitude = uiState.selectedLocation.longitude,
@@ -416,7 +406,6 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
 
                                 Spacer(modifier = Modifier.height(16.dp))
 
-                                // Sezioni Informative
                                 LegendSection(
                                     activeProfile = uiState.activeProfile,
                                     onProfileClick = { showProfileDialog = true }
@@ -439,8 +428,6 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
         }
     }
 }
-
-// --- COMPONENTI UI RIMANENTI ---
 
 fun shareCurrentForecast(context: Context, location: LocationItem, forecast: ForecastItem?) {
     if (forecast == null) return
@@ -565,7 +552,6 @@ fun LegendSection(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // Legenda a 2 colonne
             Row(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.weight(1f)) {
                     LegendRow(getFlagColor(FlagColor.GREEN), "Ottima")
@@ -577,7 +563,6 @@ fun LegendSection(
                 }
             }
 
-            // ← Chip SOTTO la legenda
             Spacer(modifier = Modifier.height(10.dp))
             AssistChip(
                 onClick = onProfileClick,
@@ -653,7 +638,6 @@ fun PrivacyDialog(onAccept: () -> Unit, onOpenPolicy: () -> Unit) {
 
 @Composable
 fun InfoDialog(onDismiss: () -> Unit) {
-    // 1. Dichiara il gestore per aprire i link nel browser
     val uriHandler = LocalUriHandler.current
 
     AlertDialog(
@@ -670,34 +654,30 @@ fun InfoDialog(onDismiss: () -> Unit) {
 
                 Text("Privacy e Posizione", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 4.dp))
 
-                // 2. Costruisci la stringa con il link nascosto
                 val privacyText = buildAnnotatedString {
                     append("L'app usa il GPS solo per il meteo locale. I dati non sono salvati e sono processati anonimamente da Open-Meteo. ")
 
-                    // Inizia la porzione cliccabile
                     pushStringAnnotation(
                         tag = "URL",
                         annotation = "https://github.com/matteogithub/BentuMetru/blob/main/PRIVACY_POLICY.md"
                     )
                     withStyle(
                         style = SpanStyle(
-                            color = MaterialTheme.colorScheme.primary, // Colore del tema per i link
+                            color = MaterialTheme.colorScheme.primary,
                             textDecoration = TextDecoration.Underline,
                             fontWeight = FontWeight.Bold
                         )
                     ) {
                         append("Privacy Policy per BentuMetru")
                     }
-                    pop() // Fine della porzione cliccabile
+                    pop()
                 }
 
-                // 3. Usa ClickableText al posto di Text
                 ClickableText(
                     text = privacyText,
-                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface), // Mantiene il colore del testo standard per la parte non cliccabile
+                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
                     modifier = Modifier.padding(bottom = 12.dp),
                     onClick = { offset ->
-                        // Controlla se il clic è avvenuto esattamente sopra l'annotazione "URL"
                         privacyText.getStringAnnotations(tag = "URL", start = offset, end = offset)
                             .firstOrNull()?.let { stringAnnotation ->
                                 uriHandler.openUri(stringAnnotation.item)
@@ -730,10 +710,8 @@ fun WeatherMapOverview(
         cameraPositionState.position = CameraPosition.fromLatLngZoom(location, 12f)
     }
 
-    // 1. Funzione di trasferimento: Normalizza il vento (es. max 30 nodi) in un coefficiente da 0.0 a 1.0
     val intensityRatio = (windKnots / 30.0).toFloat().coerceIn(0f, 1f)
 
-    // 2. Mappa il coefficiente sull'opacità (da 40% a 100%) e sulla scala (da 0.8x a 1.5x)
     val arrowAlpha = 0.4f + (intensityRatio * 0.6f)
     val arrowScale = 0.8f + (intensityRatio * 0.7f)
 
@@ -752,7 +730,6 @@ fun WeatherMapOverview(
             scrollGesturesEnabled = false
         )
     ) {
-        // Overlay radiale che riflette il Sailing Score
         Circle(
             center = location,
             radius = 2500.0,
@@ -761,7 +738,6 @@ fun WeatherMapOverview(
             strokeWidth = 3f
         )
 
-        // Vettore dinamico del vento
         MarkerComposable(
             state = MarkerState(position = location),
             anchor = Offset(0.5f, 0.5f)

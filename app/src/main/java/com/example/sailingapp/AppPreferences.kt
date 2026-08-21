@@ -18,7 +18,7 @@ class AppPreferences(private val context: Context) {
         return if (label != null) {
             SailingProfile.fromLabel(label)
         } else {
-            SailingProfile.CROCIERA  // Default
+            SailingProfile.CROCIERA
         }
     }
 
