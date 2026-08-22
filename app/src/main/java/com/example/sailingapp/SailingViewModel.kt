@@ -89,7 +89,16 @@ class SailingViewModel(application: Application) : AndroidViewModel(application)
             if (result != null) {
                 val profile = _uiState.value.activeProfile
                 val recalculated = recalculateFlags(result, profile)
-                _uiState.update { it.copy(forecastList = recalculated, isLoading = false) }
+                val noMarineData = recalculated.isNotEmpty() && recalculated.all { it.wave == null }
+                _uiState.update {
+                    it.copy(
+                        forecastList = recalculated,
+                        isLoading = false,
+                        errorMessage = if (noMarineData) {
+                            "Nessuna previsione mare disponibile per questa località: potrebbe non essere sulla costa."
+                        } else null
+                    )
+                }
             } else {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Errore di rete: impossibile recuperare i dati meteo.") }
             }
@@ -141,16 +150,21 @@ class SailingViewModel(application: Application) : AndroidViewModel(application)
 
     private fun recalculateFlags(forecasts: List<ForecastItem>, profile: SailingProfile): List<ForecastItem> {
         return forecasts.map { item ->
-            val (newFlag, newVetoReason) = getSailingFlag(
-                item.windSpeed,
-                item.windGust,
-                item.wave,
-                item.wavePeriod,
-                item.rainProb,
-                item.isThunderstorm,
-                profile.thresholds
-            )
-            item.copy(flagColor = newFlag, vetoReason = newVetoReason)
+            val wave = item.wave
+            if (wave == null) {
+                item.copy(flagColor = null, vetoReason = null)
+            } else {
+                val (newFlag, newVetoReason) = getSailingFlag(
+                    item.windSpeed,
+                    item.windGust,
+                    wave,
+                    item.wavePeriod,
+                    item.rainProb,
+                    item.isThunderstorm,
+                    profile.thresholds
+                )
+                item.copy(flagColor = newFlag, vetoReason = newVetoReason)
+            }
         }
     }
 }

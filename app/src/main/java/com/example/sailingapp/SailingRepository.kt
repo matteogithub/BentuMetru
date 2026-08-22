@@ -132,7 +132,7 @@ class SailingRepository(private val context: Context) {
                 val windSpeed = windSpeedArray.getDoubleOrNull(i)
                 val windGust = windGustsArray.getDoubleOrNull(i)
                 val wave = waveArray.getDoubleOrNull(i)
-                if (temperature == null || windSpeed == null || windGust == null || wave == null) continue
+                if (temperature == null || windSpeed == null || windGust == null) continue
 
                 val wavePeriod = wavePeriodArray.getDoubleOrNull(i)
                 val windDirDegrees = windDirArray.getIntOrNull(i) ?: 0
@@ -141,10 +141,15 @@ class SailingRepository(private val context: Context) {
                 val isThunderstorm = weatherCode != null && weatherCode in THUNDERSTORM_CODES
 
                 val windDirStr = getWindDirection(windDirDegrees)
-                val (flag, vetoReason) = getSailingFlag(
-                    windSpeed, windGust, wave, wavePeriod, rainProb, isThunderstorm,
-                    SailingProfile.CROCIERA.thresholds
-                )
+                val flagResult: Pair<FlagColor?, String?> = if (wave != null) {
+                    getSailingFlag(
+                        windSpeed, windGust, wave, wavePeriod, rainProb, isThunderstorm,
+                        SailingProfile.CROCIERA.thresholds
+                    )
+                } else {
+                    null to null
+                }
+                val (flag, vetoReason) = flagResult
                 resultList.add(ForecastItem(
                     displayDate, time, windSpeed, windGust, windDirStr, windDirDegrees,
                     wave, wavePeriod, rainProb, temperature, flag, vetoReason, isThunderstorm

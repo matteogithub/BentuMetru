@@ -431,21 +431,25 @@ fun BentuMetruScreen(viewModel: SailingViewModel = viewModel()) {
 
 fun shareCurrentForecast(context: Context, location: LocationItem, forecast: ForecastItem?) {
     if (forecast == null) return
-    val flagEmoji = when (forecast.flagColor) { FlagColor.GREEN -> "🟢"; FlagColor.YELLOW -> "🟡"; FlagColor.ORANGE -> "🟠"; FlagColor.RED -> "🔴" }
-    val conditionText = when (forecast.flagColor) { FlagColor.GREEN -> "Condizioni ottimali"; FlagColor.YELLOW -> "Condizioni discrete"; FlagColor.ORANGE -> "Condizioni mediocri"; FlagColor.RED -> "Condizioni sconsigliate" }
-    val waveText = buildString { append("${forecast.wave} m"); forecast.wavePeriod?.let { append(" (T ${it.roundToInt()}s)") } }
-    val shareText = "⛵ Previsioni Vela\n\n📍 ${location.displayName}\n📅 ${forecast.date}, ore ${forecast.time}\n💨 Vento: ${forecast.windSpeed} / ${forecast.windGust} kn ${forecast.windDir}\n🌊 Onda: $waveText\n🌡️ ${forecast.temperature}°C\n☔ Pioggia: ${forecast.rainProb}%\n\nValutazione: $flagEmoji $conditionText\n\n(Generato con BentuMetru)"
+    val flagEmoji = when (forecast.flagColor) { FlagColor.GREEN -> "🟢"; FlagColor.YELLOW -> "🟡"; FlagColor.ORANGE -> "🟠"; FlagColor.RED -> "🔴"; null -> "⚪" }
+    val conditionText = when (forecast.flagColor) { FlagColor.GREEN -> "Condizioni ottimali"; FlagColor.YELLOW -> "Condizioni discrete"; FlagColor.ORANGE -> "Condizioni mediocri"; FlagColor.RED -> "Condizioni sconsigliate"; null -> "Valutazione non disponibile" }
+    val waveLine = forecast.wave?.let { wave ->
+        val waveText = buildString { append("$wave m"); forecast.wavePeriod?.let { append(" (T ${it.roundToInt()}s)") } }
+        "\n🌊 Onda: $waveText"
+    } ?: ""
+    val shareText = "⛵ Previsioni Vela\n\n📍 ${location.displayName}\n📅 ${forecast.date}, ore ${forecast.time}\n💨 Vento: ${forecast.windSpeed} / ${forecast.windGust} kn ${forecast.windDir}$waveLine\n🌡️ ${forecast.temperature}°C\n☔ Pioggia: ${forecast.rainProb}%\n\nValutazione: $flagEmoji $conditionText\n\n(Generato con BentuMetru)"
     val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, shareText); addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
     context.startActivity(Intent.createChooser(intent, "Condividi previsioni meteo").apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
 }
 
 @Composable
-fun getFlagColor(flag: FlagColor): Color {
+fun getFlagColor(flag: FlagColor?): Color {
     return when (flag) {
         FlagColor.GREEN -> MaterialTheme.colorScheme.flagGreen
         FlagColor.YELLOW -> MaterialTheme.colorScheme.flagYellow
         FlagColor.ORANGE -> MaterialTheme.colorScheme.flagOrange
         FlagColor.RED -> MaterialTheme.colorScheme.flagRed
+        null -> MaterialTheme.colorScheme.surfaceVariant
     }
 }
 
@@ -453,9 +457,11 @@ fun getFlagColor(flag: FlagColor): Color {
 fun ForecastCard(item: ForecastItem) {
     val bgColor = getFlagColor(item.flagColor)
     val contentColor = Color(0xFF333333)
-    val waveText = buildString {
-        append("${item.wave} m")
-        item.wavePeriod?.let { append(" · T ${it.roundToInt()}s") }
+    val waveText = item.wave?.let { wave ->
+        buildString {
+            append("$wave m")
+            item.wavePeriod?.let { append(" · T ${it.roundToInt()}s") }
+        }
     }
 
     Card(
@@ -493,7 +499,7 @@ fun ForecastCard(item: ForecastItem) {
                 ) {
                     WeatherIconRow(Icons.Default.Thermostat, "${item.temperature} °C", contentColor)
                     WeatherIconRow(Icons.Default.Air, "${item.windSpeed} / ${item.windGust} kn", contentColor)
-                    WeatherIconRow(Icons.Default.Waves, waveText, contentColor)
+                    waveText?.let { WeatherIconRow(Icons.Default.Waves, it, contentColor) }
                     if (item.rainProb > 0) WeatherIconRow(Icons.Default.Umbrella, "${item.rainProb}%", contentColor)
                 }
             }

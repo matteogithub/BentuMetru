@@ -9,11 +9,11 @@ data class ForecastItem(
     val windGust: Double,
     val windDir: String,
     val windDirDegrees: Int,
-    val wave: Double,
+    val wave: Double?,
     val wavePeriod: Double?,
     val rainProb: Int,
     val temperature: Double,
-    val flagColor: FlagColor,
+    val flagColor: FlagColor?,
     val vetoReason: String? = null,
     val isThunderstorm: Boolean = false
 )
